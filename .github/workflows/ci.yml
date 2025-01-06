@@ -1,0 +1,45 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - feature_cicd
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Make
+        run: sudo apt-get install make
+
+      - name: Install Dependencies and Create Virtual Environment
+        run: |
+          make venv
+          make install
+
+      - name: Run Model Tests
+        run: make model-test
+
+      - name: Run API Tests
+        run: make api-test
+
+      - name: Upload Test Coverage Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: reports/
