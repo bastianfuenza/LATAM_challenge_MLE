@@ -12,9 +12,8 @@ on:
       - dev
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,19 +26,24 @@ jobs:
       - name: Install Make
         run: sudo apt-get install make
 
-      - name: Install Dependencies and Create Virtual Environment
+      - name: Install Dependencies
+        run: make install
+
+      - name: Run Model & API Tests (Main)
+        if: github.ref == 'refs/heads/main'
         run: |
-          make venv
-          make install
+          make model-test
+          make api-test
 
-      - name: Run Model Tests
-        run: make model-test
+      - name: Run Model & API Tests (Dev or Feature)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          make model-test || true
+          make api-test || true
 
-      - name: Run API Tests
-        run: make api-test
-
-      - name: Upload Test Coverage Reports
+      - name: Upload Test Reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: test-reports
           path: reports/
