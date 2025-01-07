@@ -38,8 +38,9 @@ jobs:
       - name: Run Model & API Tests (Dev or Feature)
         if: github.ref != 'refs/heads/main'
         run: |
-          make model-test || true
-          make api-test || true
+          make model-test
+          make api-test
+        continue-on-error: true
 
       - name: Upload Test Reports
         if: always()
