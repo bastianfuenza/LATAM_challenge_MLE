@@ -1,0 +1,44 @@
+name: 'Continuous Delivery'
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: latam-mle-app
+      IMAGE_TAG: "${GITHUB_RUN_ID}-${GITHUB_SHA}"
+
+    steps:
+    - name: Check out the code
+      uses: actions/checkout@v2
+
+    - name: Set up Google Cloud credentials
+      uses: google-github-actions/setup-gcloud@v0
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
+
+    - name: Configure Docker to use Google Cloud credentials
+      run: |
+        gcloud auth configure-docker
+
+    - name: Build Docker image
+      run: |
+        # Build Docker image
+        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} .
+
+    - name: Push Docker image to Google Container Registry
+      run: |
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+
+    - name: Deploy to Google Cloud Run
+      run: |
+        gcloud run deploy my-fastapi-service \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} \
+          --platform managed \
+          --region us-central1 \
+          --allow-unauthenticated

@@ -1,0 +1,48 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Make
+        run: sudo apt-get install make
+
+      - name: Install Dependencies
+        run: make install
+
+      - name: Run Model & API Tests (Main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          make model-test
+          make api-test
+
+      - name: Run Model & API Tests (Dev)
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          make model-test
+          make api-test
+        continue-on-error: true
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: reports/
