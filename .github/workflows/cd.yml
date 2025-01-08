@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature_deployment_gcp
 
 jobs:
   build-and-deploy:
@@ -17,6 +18,9 @@ jobs:
     steps:
     - name: Check out the code
       uses: actions/checkout@v4
+
+    - name: Install Make
+      run: sudo apt-get install make
 
     - name: Set up Google Cloud SDK
       uses: google-github-actions/auth@v2
@@ -51,3 +55,13 @@ jobs:
         --platform managed \
         --region ${{ env.REGION }} \
         --format="value(status.url)"
+      
+    - name: Run Stress Test
+      run: make stress-test
+
+    - name: Upload Test Reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-reports
+        path: reports/
