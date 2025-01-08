@@ -1,14 +1,17 @@
-name: 'Continuous Delivery'
+name: Continuous Delivery
 
 on:
-  push:
-    branches:
-      - main
-      - feature_deployment_gcp
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types:
+      - completed
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'feature_deployment_gcp'
     env:
       APP_NAME: latam-mle-app
       AR_REPO_NAME: latam-mle-app-repo

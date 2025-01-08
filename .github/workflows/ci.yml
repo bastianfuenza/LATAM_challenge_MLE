@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - feature_deployment_gcp
   pull_request:
     branches:
       - main
