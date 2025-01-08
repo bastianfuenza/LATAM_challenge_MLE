@@ -27,7 +27,7 @@ jobs:
     - name: Set up gcloud CLI
       run: |
         gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
-        gcloud auth configure-docker
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
     - name: Build Docker image
       run: |
