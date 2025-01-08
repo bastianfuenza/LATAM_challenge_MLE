@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature_deployment_gcp
 
 jobs:
   build-and-deploy:
