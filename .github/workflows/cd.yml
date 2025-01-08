@@ -18,6 +18,17 @@ jobs:
     - name: Check out the code
       uses: actions/checkout@v4
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install Make
+      run: sudo apt-get install make
+
+    - name: Install Dependencies
+      run: pip install -r requirements-test.txt
+
     - name: Set up Google Cloud SDK
       uses: google-github-actions/auth@v2
       with:
@@ -51,3 +62,13 @@ jobs:
         --platform managed \
         --region ${{ env.REGION }} \
         --format="value(status.url)"
+      
+    - name: Run Stress Test
+      run: make stress-test
+
+    - name: Upload Test Reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-reports
+        path: reports/
