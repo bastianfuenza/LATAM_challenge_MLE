@@ -4,41 +4,51 @@ on:
   push:
     branches:
       - main
+      - feature_deployment_gcp
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
       APP_NAME: latam-mle-app
-      IMAGE_TAG: "${GITHUB_RUN_ID}-${GITHUB_SHA}"
+      REGION: us-central1
+      IMAGE_TAG: ${{ github.run_id }}-${{ github.sha }}
+      IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/latam-mle-app:${{ github.run_id }}-${{ github.sha }}
 
     steps:
     - name: Check out the code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Set up Google Cloud credentials
-      uses: google-github-actions/setup-gcloud@v0
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/auth@v2
       with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
         credentials_json: ${{ secrets.GCP_CREDENTIALS_JSON }}
 
-    - name: Configure Docker to use Google Cloud credentials
+    - name: Set up gcloud CLI
       run: |
+        gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
         gcloud auth configure-docker
 
     - name: Build Docker image
       run: |
-        # Build Docker image
-        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} .
+        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ github.run_id }}-${{ github.sha }} .
 
-    - name: Push Docker image to Google Container Registry
+    - name: Push Docker image to Google Container Registry (GCR)
       run: |
-        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ github.run_id }}-${{ github.sha }}
 
     - name: Deploy to Google Cloud Run
       run: |
-        gcloud run deploy my-fastapi-service \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} \
+        gcloud run deploy ${{ env.APP_NAME }} \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.APP_NAME }}:${{ github.run_id }}-${{ github.sha }} \
           --platform managed \
-          --region us-central1 \
-          --allow-unauthenticated
+          --region ${{ env.REGION }} \
+          --allow-unauthenticated \
+          --port 8000
+
+    - name: Verify Service URL
+      run: |
+        gcloud run services describe ${{ env.APP_NAME }} \
+        --platform managed \
+        --region ${{ env.REGION }} \
+        --format="value(status.url)"
