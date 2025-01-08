@@ -1,19 +1,25 @@
 from typing import List, Tuple, Union
 
+import joblib
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
 from sklearn.utils import shuffle
+
+class InputDataException(Exception):
+    """Exception class for errors in input data for model"""
 
 
 class DelayModel:
+    MODEL_PATH = 'challenge/logistic_model.pkl'
+    ENCODER_PATH = 'challenge/onehot_encoder.pkl'
+
     DELAY_THRESHOLD_MINUTES = 15
     DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
     SCHEDULED_TIME = 'Fecha-I'
     REAL_TIME = 'Fecha-O'
     
-    PREFEATURES_COLS = ['OPERA', 'TIPOVUELO', 'MES']
-    FEATURES_COLS = [
+    PRE_FEATURE_COLS = ['OPERA', 'TIPOVUELO', 'MES']
+    FEATURE_COLS = [
         "OPERA_Latin American Wings", 
         "MES_7",
         "MES_10",
@@ -27,12 +33,23 @@ class DelayModel:
     ]
 
 
-
-
     def __init__(
         self
     ):
-        self._model = LogisticRegression(class_weight='balanced')
+        self._model = joblib.load(self.MODEL_PATH)
+        self._encoder = joblib.load(self.ENCODER_PATH)
+
+    def _check_required_columns(self, data: pd.DataFrame, target_column: str) -> None:
+        required_columns = self.PRE_FEATURE_COLS.copy()
+
+        if target_column:
+            required_columns += [self.SCHEDULED_TIME, self.REAL_TIME]
+        
+        missing_columns = set(required_columns) - set(data.columns)
+        
+        if missing_columns:
+            raise InputDataException(f"Missing required columns: {', '.join(missing_columns)}")
+
 
     def preprocess(
         self,
@@ -51,25 +68,42 @@ class DelayModel:
             or
             pd.DataFrame: features.
         """
-        features = pd.concat(
-            [pd.get_dummies(data[col], prefix=col) for col in self.PREFEATURES_COLS], 
-            axis = 1
-        )
+        try:
+            # Check data validity
+            self._check_required_columns(data, target_column)
 
-        features = features[self.FEATURES_COLS]
+            # Transform data with OneHotEncoder
+            features = pd.DataFrame(
+                self._encoder.transform(data[self.PRE_FEATURE_COLS]),
+                columns=self._encoder.get_feature_names_out(self.PRE_FEATURE_COLS),
+                index=data.index
+            )
 
-        if not target_column:
+            # Keep 10 most important features
+            features = features[self.FEATURE_COLS]
 
-            return features
-        else:
-            # Calculate target from delay
-            real_time = pd.to_datetime(data[self.REAL_TIME], format=self.DATETIME_FORMAT)
-            scheduled_time = pd.to_datetime(data[self.SCHEDULED_TIME], format=self.DATETIME_FORMAT)
-            time_diff_minutes = ((real_time - scheduled_time).dt.total_seconds())/60
-            target = np.where(time_diff_minutes > self.DELAY_THRESHOLD_MINUTES, 1, 0)
-            target = pd.DataFrame(data={target_column: target}, index=features.index)
+            if not target_column:
 
-            return features, target
+                return features
+            else:
+                # Calculate delay and then target
+                real_time = pd.to_datetime(data[self.REAL_TIME], format=self.DATETIME_FORMAT)
+                scheduled_time = pd.to_datetime(data[self.SCHEDULED_TIME], format=self.DATETIME_FORMAT)
+                time_diff_minutes = ((real_time - scheduled_time).dt.total_seconds())/60
+                target = np.where(time_diff_minutes > self.DELAY_THRESHOLD_MINUTES, 1, 0)
+                target = pd.DataFrame(data={target_column: target}, index=features.index)
+
+                return features, target
+        except ValueError as e:
+            if 'Found unknown categories' in str(e):  # Raised by One Hot Encoder
+                unknown_categories, column_index = str(e).split("Found unknown categories")[1].split("in column ")
+                unknown_categories = unknown_categories.strip().strip("[]").replace("'", "")
+                column_name = self.PRE_FEATURE_COLS[int(column_index.split(' ')[0])]
+                
+                # Raise error with improved message
+                raise InputDataException(f"Unknown categories '{unknown_categories}' found in column '{column_name}'")
+            else:
+                raise
            
 
     def fit(
